@@ -92,7 +92,7 @@ install_nextcloud() {
     sudo -u www-data php occ maintenance:update:htaccess
     
     # Install recommended apps
-    log_info "Installing recommended apps...
+    log_info "Installing recommended apps..."
     sudo -u www-data php occ app:install calendar || true
     sudo -u www-data php occ app:install contacts || true
     sudo -u www-data php occ app:install tasks || true
