@@ -40,7 +40,7 @@ cd nextcloud-installer
 ### 2. Torne os scripts executáveis
 
 ```bash
-chmod +x install.sh backup.sh restore.sh
+chmod +x install.sh backup.sh restore.sh status.sh manage.sh
 chmod +x scripts/*.sh
 ```
 
@@ -64,6 +64,8 @@ nextcloud-installer/
 ├── install.sh              # Script principal de instalação
 ├── backup.sh               # Script de backup
 ├── restore.sh              # Script de restauração
+├── status.sh               # Verificar status de todos os serviços
+├── manage.sh               # Gerenciar serviços (start/stop/restart)
 ├── scripts/
 │   ├── 01-dependencies.sh  # Instalação de dependências
 │   ├── 02-database.sh      # Configuração MariaDB
@@ -193,6 +195,30 @@ O instalador inclui automaticamente os seguintes apps:
 - Edição colaborativa em tempo real
 
 ## 🔧 Comandos Úteis
+
+### Gerenciamento de Serviços
+
+```bash
+# Ver status completo do sistema
+sudo ./status.sh
+
+# Gerenciar todos os serviços
+sudo ./manage.sh start              # Iniciar todos
+sudo ./manage.sh stop               # Parar todos
+sudo ./manage.sh restart            # Reiniciar todos
+sudo ./manage.sh status             # Status rápido
+sudo ./manage.sh logs               # Ver logs recentes
+
+# Gerenciar serviços específicos
+sudo ./manage.sh restart --web-only     # Apenas servidor web
+sudo ./manage.sh restart --db-only      # Apenas banco de dados
+sudo ./manage.sh restart --cache-only   # Apenas Redis
+sudo ./manage.sh restart --office-only  # Apenas Office
+
+# Habilitar/desabilitar início automático
+sudo ./manage.sh enable             # Ativar auto-start
+sudo ./manage.sh disable            # Desativar auto-start
+```
 
 ### OCC (Nextcloud CLI)
 
