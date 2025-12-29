@@ -258,17 +258,6 @@ server {
         fastcgi_connect_timeout 300;
     }
 
-    location ~ \.(?:css|js|svg|gif|png|html|ttf|woff2?|ico|jpg|jpeg|mp4|webm)$ {
-        try_files $uri /index.php$request_uri;
-        access_log off;
-    }
-
-    location ~ \.woff2?$ {
-        try_files $uri /index.php$request_uri;
-        expires 7d;
-        access_log off;
-    }
-
     location / {
         rewrite ^ /index.php;
     }
