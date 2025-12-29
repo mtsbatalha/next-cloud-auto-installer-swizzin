@@ -75,6 +75,12 @@ configure_ssl_security() {
     log_info "Hardening SSL configuration..."
     
     if [[ "$WEBSERVER" == "apache" ]]; then
+        # Skip if already configured
+        if [[ -f /etc/apache2/conf-available/ssl-hardening.conf ]]; then
+            log_info "SSL hardening already configured, skipping..."
+            return
+        fi
+        
         # Apache SSL hardening
         cat > /etc/apache2/conf-available/ssl-hardening.conf << 'EOF'
 # SSL Hardening Configuration
@@ -102,16 +108,15 @@ EOF
         systemctl reload apache2
         
     else
+        # Skip if already configured
+        if [[ -f /etc/nginx/conf.d/ssl-hardening.conf ]]; then
+            log_info "SSL hardening already configured, skipping..."
+            return
+        fi
+        
         # Nginx SSL hardening
         cat > /etc/nginx/conf.d/ssl-hardening.conf << 'EOF'
 # SSL Hardening Configuration
-
-# SSL protocols
-ssl_protocols TLSv1.2 TLSv1.3;
-
-# Cipher suites
-ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
-ssl_prefer_server_ciphers off;
 
 # SSL session
 ssl_session_timeout 1d;
@@ -122,16 +127,10 @@ ssl_session_tickets off;
 ssl_stapling on;
 ssl_stapling_verify on;
 
-# DH parameters
-# ssl_dhparam /etc/nginx/dhparam.pem;
-
 # Resolver
 resolver 8.8.8.8 8.8.4.4 valid=300s;
 resolver_timeout 5s;
 EOF
-        
-        # Generate DH parameters (optional, takes time)
-        # openssl dhparam -out /etc/nginx/dhparam.pem 2048
         
         nginx -t && systemctl reload nginx
     fi
