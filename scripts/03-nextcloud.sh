@@ -25,8 +25,8 @@ install_nextcloud() {
         log_info "Verifying download integrity..."
         cd /tmp
         
-        # Extract just the hash from the .sha256 file
-        EXPECTED_HASH=$(cat nextcloud.tar.bz2.sha256 | awk '{print $1}')
+        # Extract just the hash from the .sha256 file (first line only)
+        EXPECTED_HASH=$(head -1 nextcloud.tar.bz2.sha256 | awk '{print $1}')
         ACTUAL_HASH=$(sha256sum nextcloud.tar.bz2 | awk '{print $1}')
         
         if [[ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]]; then
