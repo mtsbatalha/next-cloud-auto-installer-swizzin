@@ -176,10 +176,19 @@ collect_configuration() {
     while true; do
         read -s -p "Enter Nextcloud admin password (min 10 chars): " ADMIN_PASS
         echo ""
-        if [[ ${#ADMIN_PASS} -ge 10 ]]; then
-            break
+        if [[ ${#ADMIN_PASS} -lt 10 ]]; then
+            log_error "Password must be at least 10 characters"
+            continue
         fi
-        log_error "Password must be at least 10 characters"
+        
+        read -s -p "Confirm admin password: " ADMIN_PASS_CONFIRM
+        echo ""
+        
+        if [[ "$ADMIN_PASS" == "$ADMIN_PASS_CONFIRM" ]]; then
+            break
+        else
+            log_error "Passwords do not match. Please try again."
+        fi
     done
     
     # Admin email
