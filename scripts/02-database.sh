@@ -20,10 +20,29 @@ configure_database() {
     
     # Create Nextcloud database and user
     log_info "Creating Nextcloud database..."
+    
+    # Drop existing user if exists to avoid password conflicts
+    mysql -e "DROP USER IF EXISTS '${DB_USER}'@'localhost';" 2>/dev/null || true
+    
+    # Create database
     mysql -e "CREATE DATABASE IF NOT EXISTS ${DB_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
-    mysql -e "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';"
+    
+    # Create user with password
+    mysql -e "CREATE USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';"
+    
+    # Grant privileges
     mysql -e "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';"
     mysql -e "FLUSH PRIVILEGES;"
+    
+    # Test database connection
+    log_info "Testing database connection..."
+    if mysql -u "${DB_USER}" -p"${DB_PASS}" -e "USE ${DB_NAME};" 2>/dev/null; then
+        log_success "Database connection verified"
+    else
+        log_error "Database connection test failed!"
+        log_error "User: ${DB_USER}, Database: ${DB_NAME}"
+        exit 1
+    fi
     
     # Optimize MariaDB configuration
     log_info "Optimizing MariaDB configuration..."
