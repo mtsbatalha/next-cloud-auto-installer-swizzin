@@ -46,25 +46,25 @@ PHP_CLI_INI="/etc/php/${PHP_VERSION}/cli/php.ini"
 # Create custom config for large uploads
 cat > "/etc/php/${PHP_VERSION}/fpm/conf.d/99-nextcloud-uploads.ini" << 'EOF'
 ; Nextcloud Large File Upload Configuration
-; Maximum upload file size (16GB)
-upload_max_filesize = 16G
-post_max_size = 16G
+; Maximum upload file size (50GB)
+upload_max_filesize = 50G
+post_max_size = 50G
 
-; Maximum execution time (1 hour for large uploads)
-max_execution_time = 3600
-max_input_time = 3600
+; Maximum execution time (2 hours for very large uploads)
+max_execution_time = 7200
+max_input_time = 7200
 
 ; Memory limit for processing large files
-memory_limit = 1024M
+memory_limit = 2048M
 
 ; Output buffering (disabled for streaming)
 output_buffering = Off
 
-; Session timeout
+; Session timeout (24 hours)
 session.gc_maxlifetime = 86400
 
 ; Disable default limits
-default_socket_timeout = 3600
+default_socket_timeout = 7200
 EOF
 
 # Apply to CLI as well
@@ -126,11 +126,11 @@ env[TEMP] = /tmp
 ; PHP settings for large files
 php_admin_value[error_log] = /var/log/php${PHP_VERSION}-fpm-nextcloud.log
 php_admin_flag[log_errors] = on
-php_admin_value[memory_limit] = 1024M
-php_admin_value[upload_max_filesize] = 16G
-php_admin_value[post_max_size] = 16G
-php_admin_value[max_execution_time] = 3600
-php_admin_value[max_input_time] = 3600
+php_admin_value[memory_limit] = 2048M
+php_admin_value[upload_max_filesize] = 50G
+php_admin_value[post_max_size] = 50G
+php_admin_value[max_execution_time] = 7200
+php_admin_value[max_input_time] = 7200
 php_admin_value[output_buffering] = Off
 EOF
 
@@ -145,23 +145,23 @@ log_success "PHP-FPM optimized (max_children: $MAX_CHILDREN)"
 #===============================================================================
 log_info "Updating Nginx for large file uploads..."
 
-# Update client_max_body_size if not already set to 16G
+# Update client_max_body_size if not already set to 50G
 if grep -q "client_max_body_size" "$NGINX_CONF"; then
-    sed -i 's/client_max_body_size.*/client_max_body_size 16G;/' "$NGINX_CONF"
+    sed -i 's/client_max_body_size.*/client_max_body_size 50G;/' "$NGINX_CONF"
 else
-    sed -i '/server {/a \    client_max_body_size 16G;' "$NGINX_CONF"
+    sed -i '/server {/a \    client_max_body_size 50G;' "$NGINX_CONF"
 fi
 
 # Add/update timeout settings
 if ! grep -q "proxy_read_timeout" "$NGINX_CONF"; then
-    sed -i '/client_max_body_size/a \    proxy_read_timeout 3600s;\n    proxy_send_timeout 3600s;\n    send_timeout 3600s;' "$NGINX_CONF"
+    sed -i '/client_max_body_size/a \    proxy_read_timeout 7200s;\n    proxy_send_timeout 7200s;\n    send_timeout 7200s;' "$NGINX_CONF"
 fi
 
 # Update fastcgi timeouts
-sed -i 's/fastcgi_read_timeout.*/fastcgi_read_timeout 3600;/' "$NGINX_CONF" 2>/dev/null || true
-sed -i 's/fastcgi_send_timeout.*/fastcgi_send_timeout 3600;/' "$NGINX_CONF" 2>/dev/null || true
+sed -i 's/fastcgi_read_timeout.*/fastcgi_read_timeout 7200;/' "$NGINX_CONF" 2>/dev/null || true
+sed -i 's/fastcgi_send_timeout.*/fastcgi_send_timeout 7200;/' "$NGINX_CONF" 2>/dev/null || true
 
-log_success "Nginx configured for 16GB uploads"
+log_success "Nginx configured for 50GB uploads"
 
 #===============================================================================
 # 4. Nextcloud Configuration
@@ -281,13 +281,13 @@ echo "  Optimization Complete!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "  Large File Support:"
-echo "    ✓ Maximum upload size: 16 GB"
-echo "    ✓ Upload timeout: 1 hour"
+echo "    ✓ Maximum upload size: 50 GB"
+echo "    ✓ Upload timeout: 2 hours"
 echo "    ✓ Chunk size: 10 MB"
 echo ""
 echo "  Performance:"
 echo "    ✓ PHP-FPM max_children: $MAX_CHILDREN"
-echo "    ✓ Memory limit: 1024 MB"
+echo "    ✓ Memory limit: 2048 MB"
 echo "    ✓ APCu caching enabled"
 echo ""
 echo "  Office Integration:"
