@@ -153,7 +153,6 @@ limit_req_zone $binary_remote_addr zone=nextcloud_rate:10m rate=10r/s;
 
 server {
     listen 80;
-    listen [::]:80;
     server_name DOMAIN_PLACEHOLDER;
 
     root NEXTCLOUD_PATH_PLACEHOLDER;
