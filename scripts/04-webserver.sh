@@ -142,7 +142,7 @@ configure_nginx() {
     # Remove default site
     rm -f /etc/nginx/sites-enabled/default
     
-    # Create Nextcloud server block
+    # Create Nextcloud server block (HTTP only initially, SSL added by Certbot)
     cat > /etc/nginx/sites-available/nextcloud << 'NGINX_EOF'
 upstream php-handler {
     server unix:/var/run/php/phpPHP_VERSION_PLACEHOLDER-fpm.sock;
@@ -155,19 +155,6 @@ server {
     listen 80;
     listen [::]:80;
     server_name DOMAIN_PLACEHOLDER;
-
-    # Enforce HTTPS
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name DOMAIN_PLACEHOLDER;
-
-    # SSL will be configured by Certbot
-    # ssl_certificate /etc/letsencrypt/live/DOMAIN_PLACEHOLDER/fullchain.pem;
-    # ssl_certificate_key /etc/letsencrypt/live/DOMAIN_PLACEHOLDER/privkey.pem;
 
     root NEXTCLOUD_PATH_PLACEHOLDER;
 
