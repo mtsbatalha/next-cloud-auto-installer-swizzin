@@ -142,14 +142,11 @@ configure_nginx() {
     # Remove default site
     rm -f /etc/nginx/sites-enabled/default
     
-    # Create Nextcloud server block (HTTP only initially, SSL added by Certbot)
+    # Create Nextcloud server block
     cat > /etc/nginx/sites-available/nextcloud << 'NGINX_EOF'
 upstream php-handler {
     server unix:/var/run/php/phpPHP_VERSION_PLACEHOLDER-fpm.sock;
 }
-
-# Rate limiting
-limit_req_zone $binary_remote_addr zone=nextcloud_rate:10m rate=10r/s;
 
 server {
     listen 80;
@@ -168,9 +165,6 @@ server {
     add_header X-Download-Options "noopen" always;
     add_header X-Permitted-Cross-Domain-Policies "none" always;
 
-    # Rate limiting
-    limit_req zone=nextcloud_rate burst=20 nodelay;
-
     # Logging
     access_log /var/log/nginx/nextcloud-access.log;
     error_log /var/log/nginx/nextcloud-error.log;
@@ -178,7 +172,13 @@ server {
     # File size limits
     client_max_body_size 16G;
     client_body_timeout 300s;
-    fastcgi_buffers 64 4K;
+
+    # FastCGI settings (Optimized for Nextcloud)
+    fastcgi_buffers 64 16k;
+    fastcgi_buffer_size 32k;
+    fastcgi_read_timeout 300;
+    fastcgi_send_timeout 300;
+    fastcgi_connect_timeout 300;
 
     # Gzip compression
     gzip on;
@@ -214,9 +214,6 @@ server {
         try_files $uri $uri/ =404;
     }
 
-    # Set max upload size and increase upload timeout
-    client_body_buffer_size 512k;
-
     # Deny access to sensitive directories
     location ~ ^/(?:build|tests|config|lib|3rdparty|templates|data)(?:$|/) {
         return 404;
@@ -225,17 +222,15 @@ server {
         return 404;
     }
 
-    # Cache static files
-    location ~* \.(?:css|js|woff2?|svg|gif|map|png|html|ttf|ico|jpg|jpeg|bcmap|mp4|webm)$ {
+    # Cache static files (including .mjs)
+    location ~* \.(?:css|js|mjs|woff2?|svg|gif|map|png|html|ttf|ico|jpg|jpeg|bcmap|mp4|webm)$ {
         try_files $uri /index.php$request_uri;
         add_header Cache-Control "public, max-age=15778463, immutable";
+        add_header X-Content-Type-Options "nosniff" always;
         access_log off;
     }
 
     location ~ \.php(?:$|/) {
-        # Required for legacy support
-        rewrite ^/(?!index|remote|public|cron|core\/ajax\/update|status|ocs\/v[12]|updater\/.+|ocs-provider\/.+|.+\/richdocumentscode\/proxy) /index.php$request_uri;
-
         fastcgi_split_path_info ^(.+?\.php)(/.*)$;
         set $path_info $fastcgi_path_info;
 
@@ -249,17 +244,12 @@ server {
         fastcgi_param front_controller_active true;
 
         fastcgi_pass php-handler;
-
         fastcgi_intercept_errors on;
         fastcgi_request_buffering off;
-
-        fastcgi_read_timeout 300;
-        fastcgi_send_timeout 300;
-        fastcgi_connect_timeout 300;
     }
 
     location / {
-        rewrite ^ /index.php;
+        try_files $uri $uri/ /index.php$request_uri;
     }
 }
 NGINX_EOF
