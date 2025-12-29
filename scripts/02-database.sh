@@ -21,28 +21,50 @@ configure_database() {
     # Create Nextcloud database and user
     log_info "Creating Nextcloud database..."
     
-    # Drop existing user if exists to avoid password conflicts
-    mysql -e "DROP USER IF EXISTS '${DB_USER}'@'localhost';" 2>/dev/null || true
+    # Restart MariaDB to clear any cached connections
+    systemctl restart mariadb
+    sleep 2
     
-    # Create database
-    mysql -e "CREATE DATABASE IF NOT EXISTS ${DB_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
+    # Completely remove any existing user (all hosts)
+    log_info "Removing any existing database user..."
+    mysql -e "DROP USER IF EXISTS '${DB_USER}'@'localhost';" 2>/dev/null || true
+    mysql -e "DROP USER IF EXISTS '${DB_USER}'@'%';" 2>/dev/null || true
+    mysql -e "FLUSH PRIVILEGES;"
+    
+    # Recreate database
+    mysql -e "DROP DATABASE IF EXISTS ${DB_NAME};"
+    mysql -e "CREATE DATABASE ${DB_NAME} CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
     
     # Create user with password
     mysql -e "CREATE USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASS}';"
-    
-    # Grant privileges
-    mysql -e "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost';"
+    mysql -e "GRANT ALL PRIVILEGES ON ${DB_NAME}.* TO '${DB_USER}'@'localhost' WITH GRANT OPTION;"
     mysql -e "FLUSH PRIVILEGES;"
     
-    # Test database connection
+    # Wait for privileges to take effect
+    sleep 1
+    
+    # Test database connection with retries
     log_info "Testing database connection..."
-    if mysql -u "${DB_USER}" -p"${DB_PASS}" -e "USE ${DB_NAME};" 2>/dev/null; then
-        log_success "Database connection verified"
-    else
-        log_error "Database connection test failed!"
-        log_error "User: ${DB_USER}, Database: ${DB_NAME}"
-        exit 1
-    fi
+    MAX_RETRIES=3
+    RETRY_COUNT=0
+    
+    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+        if mysql -u "${DB_USER}" -p"${DB_PASS}" -e "USE ${DB_NAME}; SELECT 1;" 2>/dev/null; then
+            log_success "Database connection verified"
+            break
+        else
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                log_warning "Connection test failed, retrying... ($RETRY_COUNT/$MAX_RETRIES)"
+                sleep 2
+            else
+                log_error "Database connection test failed after $MAX_RETRIES attempts!"
+                log_error "User: ${DB_USER}, Database: ${DB_NAME}"
+                log_error "Run './fix-database.sh' to fix manually"
+                exit 1
+            fi
+        fi
+    done
     
     # Optimize MariaDB configuration
     log_info "Optimizing MariaDB configuration..."
