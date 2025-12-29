@@ -13,15 +13,32 @@ install_nextcloud() {
     
     # Download latest Nextcloud
     DOWNLOAD_URL="https://download.nextcloud.com/server/releases/latest.tar.bz2"
-    wget -q "${DOWNLOAD_URL}" -O /tmp/nextcloud.tar.bz2
-    wget -q "${DOWNLOAD_URL}.sha256" -O /tmp/nextcloud.tar.bz2.sha256
     
-    # Verify download
-    log_info "Verifying download integrity..."
-    cd /tmp
-    if ! sha256sum -c nextcloud.tar.bz2.sha256; then
-        log_error "Download verification failed!"
+    log_info "Fetching from: ${DOWNLOAD_URL}"
+    if ! wget --show-progress -O /tmp/nextcloud.tar.bz2 "${DOWNLOAD_URL}"; then
+        log_error "Failed to download Nextcloud!"
         exit 1
+    fi
+    
+    # Download SHA256 checksum
+    if wget --show-progress -O /tmp/nextcloud.tar.bz2.sha256 "${DOWNLOAD_URL}.sha256" 2>/dev/null; then
+        log_info "Verifying download integrity..."
+        cd /tmp
+        
+        # Extract just the hash from the .sha256 file
+        EXPECTED_HASH=$(cat nextcloud.tar.bz2.sha256 | awk '{print $1}')
+        ACTUAL_HASH=$(sha256sum nextcloud.tar.bz2 | awk '{print $1}')
+        
+        if [[ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]]; then
+            log_error "SHA256 verification failed!"
+            log_error "Expected: $EXPECTED_HASH"
+            log_error "Actual:   $ACTUAL_HASH"
+            exit 1
+        fi
+        log_success "Download verified successfully"
+    else
+        log_warning "Could not download SHA256 checksum, skipping verification"
+        log_warning "Continuing with download..."
     fi
     
     # Extract Nextcloud
