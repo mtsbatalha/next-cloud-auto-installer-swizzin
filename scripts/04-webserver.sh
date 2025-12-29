@@ -142,95 +142,110 @@ configure_nginx() {
     # Remove default site
     rm -f /etc/nginx/sites-enabled/default
     
-    # Create Nextcloud server block
+    # Create Nextcloud server block (Official Nextcloud Configuration)
+    # Based on: https://docs.nextcloud.com/server/latest/admin_manual/installation/nginx.html
     cat > /etc/nginx/sites-available/nextcloud << 'NGINX_EOF'
+# Nextcloud Official Nginx Configuration
+# Version 2025-07-23
+
 upstream php-handler {
-    server unix:/var/run/php/phpPHP_VERSION_PLACEHOLDER-fpm.sock;
+    server unix:/run/php/phpPHP_VERSION_PLACEHOLDER-fpm.sock;
+}
+
+# Set the `immutable` cache control options only for assets with a cache busting `v` argument
+map $arg_v $asset_immutable {
+    "" "";
+    default ", immutable";
 }
 
 server {
     listen 80;
+    listen [::]:80;
     server_name DOMAIN_PLACEHOLDER;
 
+    # Prevent nginx HTTP Server Detection
+    server_tokens off;
+
+    # Enforce HTTPS (will be handled by Certbot later)
+    # return 301 https://$server_name$request_uri;
+    
+    # Path to the root of your installation
     root NEXTCLOUD_PATH_PLACEHOLDER;
 
-    # Security Headers
+    # HSTS settings
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header X-Robots-Tag "noindex, nofollow" always;
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header Referrer-Policy "no-referrer-when-downgrade" always;
-    add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
-    add_header X-Download-Options "noopen" always;
-    add_header X-Permitted-Cross-Domain-Policies "none" always;
 
-    # Logging
-    access_log /var/log/nginx/nextcloud-access.log;
-    error_log /var/log/nginx/nextcloud-error.log;
+    # set max upload size (50GB) and increase upload timeout:
+    client_max_body_size 50G;
+    client_body_timeout 7200s;
+    fastcgi_buffers 64 4K;
 
-    # File size limits
-    client_max_body_size 16G;
-    client_body_timeout 300s;
-
-    # FastCGI settings (Optimized for Nextcloud)
-    fastcgi_buffers 64 16k;
-    fastcgi_buffer_size 32k;
-    fastcgi_read_timeout 300;
-    fastcgi_send_timeout 300;
-    fastcgi_connect_timeout 300;
-
-    # Gzip compression
+    # Enable gzip but do not remove ETag headers
     gzip on;
     gzip_vary on;
     gzip_comp_level 4;
     gzip_min_length 256;
     gzip_proxied expired no-cache no-store private no_last_modified no_etag auth;
-    gzip_types application/atom+xml application/javascript application/json application/ld+json application/manifest+json application/rss+xml application/vnd.geo+json application/vnd.ms-fontobject application/wasm application/x-font-ttf application/x-web-app-manifest+json application/xhtml+xml application/xml font/opentype image/bmp image/svg+xml image/x-icon text/cache-manifest text/css text/plain text/vcard text/vnd.rim.location.xloc text/vtt text/x-component text/x-cross-domain-policy;
+    gzip_types application/atom+xml text/javascript application/javascript application/json application/ld+json application/manifest+json application/rss+xml application/vnd.geo+json application/vnd.ms-fontobject application/wasm application/x-font-ttf application/x-web-app-manifest+json application/xhtml+xml application/xml font/opentype image/bmp image/svg+xml image/x-icon text/cache-manifest text/css text/plain text/vcard text/vnd.rim.location.xloc text/vtt text/x-component text/x-cross-domain-policy;
 
-    # HTTP response headers for static content
+    # HTTP2 bandwidth optimization
+    client_body_buffer_size 512k;
+
+    # HTTP response headers borrowed from Nextcloud `.htaccess`
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Permitted-Cross-Domain-Policies "none" always;
+    add_header X-Robots-Tag "noindex, nofollow" always;
+
+    # Remove X-Powered-By, which is an information leak
+    fastcgi_hide_header X-Powered-By;
+
+    # Set .mjs and .wasm MIME types
+    include mime.types;
+    types {
+        text/javascript mjs;
+        application/wasm wasm;
+    }
+
+    # Specify how to handle directories
+    index index.php index.html /index.php$request_uri;
+
+    # Rule borrowed from `.htaccess` to handle Microsoft DAV clients
+    location = / {
+        if ( $http_user_agent ~ ^DavClnt ) {
+            return 302 /remote.php/webdav/$is_args$args;
+        }
+    }
+
     location = /robots.txt {
         allow all;
         log_not_found off;
         access_log off;
     }
 
-    # The following 2 rules are only needed for the user_webfinger app
-    location ^~ /.well-known/webfinger {
-        return 301 $scheme://$host/index.php/.well-known/webfinger;
-    }
-    location ^~ /.well-known/nodeinfo {
-        return 301 $scheme://$host/index.php/.well-known/nodeinfo;
+    # Make a regex exception for `/.well-known`
+    location ^~ /.well-known {
+        location = /.well-known/carddav { return 301 /remote.php/dav/; }
+        location = /.well-known/caldav  { return 301 /remote.php/dav/; }
+
+        location /.well-known/acme-challenge { try_files $uri $uri/ =404; }
+        location /.well-known/pki-validation { try_files $uri $uri/ =404; }
+
+        # Let Nextcloud's API for `/.well-known` URIs handle all other requests
+        return 301 /index.php$request_uri;
     }
 
-    location = /.well-known/carddav {
-        return 301 $scheme://$host/remote.php/dav;
-    }
-    location = /.well-known/caldav {
-        return 301 $scheme://$host/remote.php/dav;
-    }
+    # Rules borrowed from `.htaccess` to hide certain paths from clients
+    location ~ ^/(?:build|tests|config|lib|3rdparty|templates|data)(?:$|/)  { return 404; }
+    location ~ ^/(?:\.|autotest|occ|issue|indie|db_|console)                { return 404; }
 
-    location /.well-known/acme-challenge {
-        try_files $uri $uri/ =404;
-    }
-
-    # Deny access to sensitive directories
-    location ~ ^/(?:build|tests|config|lib|3rdparty|templates|data)(?:$|/) {
-        return 404;
-    }
-    location ~ ^/(?:\.|autotest|occ|issue|indie|db_|console) {
-        return 404;
-    }
-
-    # Cache static files (including .mjs)
-    location ~* \.(?:css|js|mjs|woff2?|svg|gif|map|png|html|ttf|ico|jpg|jpeg|bcmap|mp4|webm)$ {
-        try_files $uri /index.php$request_uri;
-        add_header Cache-Control "public, max-age=15778463, immutable";
-        add_header X-Content-Type-Options "nosniff" always;
-        access_log off;
-    }
-
+    # Ensure this block, which passes PHP files to the PHP process, is above the blocks
+    # which handle static assets
     location ~ \.php(?:$|/) {
+        # Required for legacy support
+        rewrite ^/(?!index|remote|public|cron|core\/ajax\/update|status|ocs\/v[12]|updater\/.+|ocs-provider\/.+|.+\/richdocumentscode(_arm64)?\/proxy) /index.php$request_uri;
+
         fastcgi_split_path_info ^(.+?\.php)(/.*)$;
         set $path_info $fastcgi_path_info;
 
@@ -240,12 +255,43 @@ server {
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         fastcgi_param PATH_INFO $path_info;
         fastcgi_param HTTPS on;
+
         fastcgi_param modHeadersAvailable true;
         fastcgi_param front_controller_active true;
-
         fastcgi_pass php-handler;
+
         fastcgi_intercept_errors on;
-        fastcgi_request_buffering off;
+        fastcgi_request_buffering on;
+
+        # Timeouts for large file uploads (2 hours)
+        fastcgi_read_timeout 7200;
+        fastcgi_send_timeout 7200;
+        fastcgi_connect_timeout 7200;
+
+        fastcgi_max_temp_file_size 0;
+    }
+
+    # Serve static files
+    location ~ \.(?:css|js|mjs|svg|gif|ico|jpg|png|webp|wasm|tflite|map|ogg|flac)$ {
+        try_files $uri /index.php$request_uri;
+        add_header Cache-Control "public, max-age=15778463$asset_immutable";
+        add_header Referrer-Policy "no-referrer" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Permitted-Cross-Domain-Policies "none" always;
+        add_header X-Robots-Tag "noindex, nofollow" always;
+        access_log off;
+    }
+
+    location ~ \.(otf|woff2?)$ {
+        try_files $uri /index.php$request_uri;
+        expires 7d;
+        access_log off;
+    }
+
+    # Rule borrowed from `.htaccess`
+    location /remote {
+        return 301 /remote.php$request_uri;
     }
 
     location / {

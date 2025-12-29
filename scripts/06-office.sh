@@ -227,10 +227,23 @@ install_onlyoffice() {
     sudo -u www-data php occ app:install onlyoffice || true
     sudo -u www-data php occ app:enable onlyoffice
     
-    # Configure OnlyOffice app
+    # Configure OnlyOffice app with internal/external URLs
+    # DocumentServerUrl = URL the BROWSER uses (must be HTTPS)
+    # DocumentServerInternalUrl = URL the SERVER uses internally (can be HTTP)
     sudo -u www-data php occ config:app:set onlyoffice DocumentServerUrl --value="https://${OFFICE_DOMAIN}/"
+    sudo -u www-data php occ config:app:set onlyoffice DocumentServerInternalUrl --value="http://127.0.0.1:9980/"
+    sudo -u www-data php occ config:app:set onlyoffice StorageUrl --value="https://${DOMAIN}/"
     sudo -u www-data php occ config:app:set onlyoffice jwt_secret --value="${ONLYOFFICE_JWT_SECRET}"
     sudo -u www-data php occ config:app:set onlyoffice jwt_header --value="Authorization"
+    
+    # Disable SSL verification for internal connections (prevents handshake errors)
+    sudo -u www-data php occ config:app:set onlyoffice verify_peer_off --value="true"
+    
+    # Set default file formats to open in OnlyOffice
+    sudo -u www-data php occ config:app:set onlyoffice defFormats --value='{"csv":"true","doc":"true","docm":"true","docx":"true","dotx":"true","epub":"true","html":"true","odp":"true","ods":"true","odt":"true","pdf":"false","potm":"true","potx":"true","ppsm":"true","ppsx":"true","ppt":"true","pptm":"true","pptx":"true","rtf":"true","txt":"true","xls":"true","xlsm":"true","xlsx":"true","xltm":"true","xltx":"true"}'
+    
+    # Open in same tab
+    sudo -u www-data php occ config:app:set onlyoffice sameTab --value="true"
     
     # Save JWT secret to config file
     echo "ONLYOFFICE_JWT_SECRET=\"${ONLYOFFICE_JWT_SECRET}\"" >> "${SCRIPT_DIR}/.install-config"
@@ -294,6 +307,13 @@ server {
 
     ssl_certificate /etc/letsencrypt/live/${OFFICE_DOMAIN}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${OFFICE_DOMAIN}/privkey.pem;
+    
+    # TLS settings (compatible with most clients)
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers 'HIGH:!aNULL:!MD5:!3DES';
+    ssl_prefer_server_ciphers on;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:50m;
 
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
@@ -302,7 +322,7 @@ server {
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header X-Forwarded-Proto https;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
