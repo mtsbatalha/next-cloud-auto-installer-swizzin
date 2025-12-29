@@ -67,6 +67,10 @@ nextcloud-installer/
 ├── update.sh               # Atualizar Nextcloud
 ├── status.sh               # Verificar status de todos os serviços
 ├── manage.sh               # Gerenciar serviços (start/stop/restart)
+├── extras/
+│   ├── install-talk.sh     # Instalar Nextcloud Talk (opcional)
+│   ├── install-pagespeed.sh # Nginx com PageSpeed (opcional)
+│   └── README.md           # Documentação dos extras
 ├── scripts/
 │   ├── 01-dependencies.sh  # Instalação de dependências
 │   ├── 02-database.sh      # Configuração MariaDB
@@ -210,7 +214,30 @@ O instalador inclui automaticamente os seguintes apps:
 - 📝 Notes
 - 📋 Deck
 - 🖼️ Photos
-- 💬 Talk
+
+## 🎁 Funcionalidades Extras (Opcionais)
+
+### Nextcloud Talk
+```bash
+sudo chmod +x extras/install-talk.sh
+sudo ./extras/install-talk.sh
+```
+Instala Talk completo com:
+- Vídeo chamadas e chat
+- Coturn (TURN/STUN server)
+- High-Performance Backend
+
+### Nginx com PageSpeed
+```bash
+sudo chmod +x extras/install-pagespeed.sh
+sudo ./extras/install-pagespeed.sh
+```
+Compila Nginx com PageSpeed para:
+- Otimização automática de imagens
+- Minificação CSS/JS
+- Lazy loading
+
+**Ver:** [extras/README.md](extras/README.md) para detalhes
 
 ## 🏢 Suítes Office
 
