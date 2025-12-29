@@ -1,0 +1,13 @@
+# Credentials and local config
+.install-config
+*.log
+*.tmp
+*.bak
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Backup data (if placed inside)
+/var/backups/nextcloud
+/var/nextcloud-data
