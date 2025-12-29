@@ -1,6 +1,6 @@
 #!/bin/bash
 #===============================================================================
-# fix-nginx.sh - Fix duplicate location blocks in Nginx configuration
+# fix-nginx.sh - Fix Nextcloud Nginx configuration (HTTP + HTTPS)
 # Run this script on the server to fix the broken Nextcloud interface
 #===============================================================================
 
@@ -49,20 +49,24 @@ cp "$NGINX_CONF" "${NGINX_CONF}.bak.$(date +%Y%m%d%H%M%S)"
 
 log_info "Collecting current configuration..."
 
-# Try to get values from .install-config if it exists in the same directory or parent
+# Try to get values from .install-config if it exists
 if [[ -f ".install-config" ]]; then
     source .install-config
 elif [[ -f "../.install-config" ]]; then
     source ../.install-config
 fi
 
-# Fallback: extract from existing Nginx config if not in .install-config
+# Fallback: extract from existing Nginx config
 [[ -z "$DOMAIN" ]] && DOMAIN=$(grep "server_name" "$NGINX_CONF" | head -1 | awk '{print $2}' | tr -d ';')
 [[ -z "$NEXTCLOUD_PATH" ]] && NEXTCLOUD_PATH=$(grep "root" "$NGINX_CONF" | head -1 | awk '{print $2}' | tr -d ';')
 [[ -z "$PHP_VERSION" ]] && PHP_VERSION=$(grep -oP 'php[0-9.]+-fpm' "$NGINX_CONF" | head -1 | sed 's/php//;s/-fpm//')
 
-# Absolute fallback for PHP_VERSION if detection failed
-[[ -z "$PHP_VERSION" ]] && PHP_VERSION=$(ls /var/run/php/php*-fpm.sock | head -1 | grep -oP '[0-9.]+')
+# Absolute fallback for PHP_VERSION
+[[ -z "$PHP_VERSION" ]] && PHP_VERSION=$(ls /var/run/php/php*-fpm.sock 2>/dev/null | head -1 | grep -oP '[0-9.]+')
+
+# Check for SSL certificates
+SSL_CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+SSL_KEY="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
 
 if [[ -z "$DOMAIN" || -z "$NEXTCLOUD_PATH" || -z "$PHP_VERSION" ]]; then
     log_error "Could not detect configuration (Domain: $DOMAIN, Path: $NEXTCLOUD_PATH, PHP: $PHP_VERSION)"
@@ -71,18 +75,70 @@ fi
 
 log_info "Detected: Domain=$DOMAIN, Path=$NEXTCLOUD_PATH, PHP=$PHP_VERSION"
 
+# Check if SSL is configured
+HAS_SSL=false
+if [[ -f "$SSL_CERT" && -f "$SSL_KEY" ]]; then
+    HAS_SSL=true
+    log_info "SSL certificates found, configuring HTTPS..."
+else
+    log_warning "No SSL certificates found at $SSL_CERT"
+    log_info "Configuring HTTP only. Run certbot after to enable HTTPS."
+fi
+
 log_info "Applying robust Nginx configuration..."
 
-cat > "$NGINX_CONF" << EOF
+# Write the configuration
+cat > "$NGINX_CONF" << 'NGINX_CONF_START'
 upstream php-handler {
-    server unix:/var/run/php/php${PHP_VERSION}-fpm.sock;
+    server unix:/var/run/php/phpPHP_VERSION_PLACEHOLDER-fpm.sock;
 }
 
+NGINX_CONF_START
+
+# Add HTTP server block (redirect to HTTPS if SSL exists)
+if [[ "$HAS_SSL" == "true" ]]; then
+    cat >> "$NGINX_CONF" << 'HTTP_REDIRECT'
 server {
     listen 80;
-    server_name ${DOMAIN};
+    server_name DOMAIN_PLACEHOLDER;
+    
+    # Redirect all HTTP to HTTPS
+    return 301 https://$server_name$request_uri;
+}
 
-    root ${NEXTCLOUD_PATH};
+HTTP_REDIRECT
+fi
+
+# Main server block (HTTPS if SSL exists, HTTP otherwise)
+if [[ "$HAS_SSL" == "true" ]]; then
+    cat >> "$NGINX_CONF" << 'HTTPS_START'
+server {
+    listen 443 ssl http2;
+    server_name DOMAIN_PLACEHOLDER;
+
+    # SSL Configuration
+    ssl_certificate /etc/letsencrypt/live/DOMAIN_PLACEHOLDER/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/DOMAIN_PLACEHOLDER/privkey.pem;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:50m;
+    ssl_session_tickets off;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+    ssl_prefer_server_ciphers off;
+
+HTTPS_START
+else
+    cat >> "$NGINX_CONF" << 'HTTP_START'
+server {
+    listen 80;
+    server_name DOMAIN_PLACEHOLDER;
+
+HTTP_START
+fi
+
+# Common server configuration
+cat >> "$NGINX_CONF" << 'COMMON_CONFIG'
+    root NEXTCLOUD_PATH_PLACEHOLDER;
 
     # Security Headers
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
@@ -118,30 +174,28 @@ server {
     gzip_proxied expired no-cache no-store private no_last_modified no_etag auth;
     gzip_types application/atom+xml application/javascript application/json application/ld+json application/manifest+json application/rss+xml application/vnd.geo+json application/vnd.ms-fontobject application/wasm application/x-font-ttf application/x-web-app-manifest+json application/xhtml+xml application/xml font/opentype image/bmp image/svg+xml image/x-icon text/cache-manifest text/css text/plain text/vcard text/vnd.rim.location.xloc text/vtt text/x-component text/x-cross-domain-policy;
 
-    # HTTP response headers for static content
+    # Static content
     location = /robots.txt {
         allow all;
         log_not_found off;
         access_log off;
     }
 
-    # The following 2 rules are only needed for the user_webfinger app
+    # Well-known redirects
     location ^~ /.well-known/webfinger {
-        return 301 \$scheme://\$host/index.php/.well-known/webfinger;
+        return 301 $scheme://$host/index.php/.well-known/webfinger;
     }
     location ^~ /.well-known/nodeinfo {
-        return 301 \$scheme://\$host/index.php/.well-known/nodeinfo;
+        return 301 $scheme://$host/index.php/.well-known/nodeinfo;
     }
-
     location = /.well-known/carddav {
-        return 301 \$scheme://\$host/remote.php/dav;
+        return 301 $scheme://$host/remote.php/dav;
     }
     location = /.well-known/caldav {
-        return 301 \$scheme://\$host/remote.php/dav;
+        return 301 $scheme://$host/remote.php/dav;
     }
-
     location /.well-known/acme-challenge {
-        try_files \$uri \$uri/ =404;
+        try_files $uri $uri/ =404;
     }
 
     # Deny access to sensitive directories
@@ -154,21 +208,22 @@ server {
 
     # Cache static files (including .mjs)
     location ~* \.(?:css|js|mjs|woff2?|svg|gif|map|png|html|ttf|ico|jpg|jpeg|bcmap|mp4|webm)$ {
-        try_files \$uri /index.php\$request_uri;
+        try_files $uri /index.php$request_uri;
         add_header Cache-Control "public, max-age=15778463, immutable";
         add_header X-Content-Type-Options "nosniff" always;
         access_log off;
     }
 
+    # PHP handling
     location ~ \.php(?:$|/) {
         fastcgi_split_path_info ^(.+?\.php)(/.*)$;
-        set \$path_info \$fastcgi_path_info;
+        set $path_info $fastcgi_path_info;
 
-        try_files \$fastcgi_script_name =404;
+        try_files $fastcgi_script_name =404;
 
         include fastcgi_params;
-        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
-        fastcgi_param PATH_INFO \$path_info;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO $path_info;
         fastcgi_param HTTPS on;
         fastcgi_param modHeadersAvailable true;
         fastcgi_param front_controller_active true;
@@ -178,11 +233,17 @@ server {
         fastcgi_request_buffering off;
     }
 
+    # Default location - route everything through index.php
     location / {
-        try_files \$uri \$uri/ /index.php\$request_uri;
+        try_files $uri $uri/ /index.php$request_uri;
     }
 }
-EOF
+COMMON_CONFIG
+
+# Replace placeholders
+sed -i "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" "$NGINX_CONF"
+sed -i "s|NEXTCLOUD_PATH_PLACEHOLDER|${NEXTCLOUD_PATH}|g" "$NGINX_CONF"
+sed -i "s|PHP_VERSION_PLACEHOLDER|${PHP_VERSION}|g" "$NGINX_CONF"
 
 log_info "Testing Nginx configuration..."
 if nginx -t 2>&1; then
@@ -213,13 +274,11 @@ else
 fi
 
 log_info "Restarting PHP-FPM..."
-# Try to find and restart PHP-FPM
 PHP_FPM_SERVICE="php${PHP_VERSION}-fpm"
 if systemctl is-active --quiet "$PHP_FPM_SERVICE"; then
     systemctl restart "$PHP_FPM_SERVICE"
     log_success "Restarted $PHP_FPM_SERVICE"
 else
-    # Fallback to detection if specific version failed
     PHP_FPM_SERVICE=$(systemctl list-units --type=service --state=running | grep -oP 'php[0-9.]+\-fpm' | head -1)
     if [[ -n "$PHP_FPM_SERVICE" ]]; then
         systemctl restart "$PHP_FPM_SERVICE"
@@ -233,7 +292,11 @@ echo ""
 log_success "Fix applied successfully!"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+if [[ "$HAS_SSL" == "true" ]]; then
+    echo "  HTTPS is configured. Access your Nextcloud at: https://${DOMAIN}"
+else
+    echo "  HTTP only configured. Run 'certbot --nginx' to enable HTTPS."
+fi
 echo "  Please refresh your Nextcloud page (Ctrl+Shift+R to hard refresh)"
-echo "  The interface should now display correctly with all icons and styles."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
