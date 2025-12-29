@@ -92,14 +92,13 @@ install_nextcloud() {
     sudo -u www-data php occ maintenance:update:htaccess
     
     # Install recommended apps
-    log_info "Installing recommended apps..."
+    log_info "Installing recommended apps...
     sudo -u www-data php occ app:install calendar || true
     sudo -u www-data php occ app:install contacts || true
     sudo -u www-data php occ app:install tasks || true
     sudo -u www-data php occ app:install notes || true
     sudo -u www-data php occ app:install deck || true
     sudo -u www-data php occ app:install photos || true
-    sudo -u www-data php occ app:install talk || true
     
     # Enable apps
     sudo -u www-data php occ app:enable calendar || true
@@ -108,7 +107,6 @@ install_nextcloud() {
     sudo -u www-data php occ app:enable notes || true
     sudo -u www-data php occ app:enable deck || true
     sudo -u www-data php occ app:enable photos || true
-    sudo -u www-data php occ app:enable talk || true
     
     log_success "Nextcloud installed successfully"
 }

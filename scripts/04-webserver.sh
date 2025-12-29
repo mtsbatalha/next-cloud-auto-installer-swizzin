@@ -304,15 +304,7 @@ NGINX_EOF
     cat > /etc/nginx/conf.d/nextcloud-tuning.conf << EOF
 # Nextcloud performance tuning
 
-# Worker settings
-worker_rlimit_nofile 65535;
-
-# Events
-# events {
-#     worker_connections 4096;
-#     use epoll;
-#     multi_accept on;
-# }
+# Note: worker_rlimit_nofile and events must be configured in main nginx.conf
 
 # Buffer sizes
 proxy_buffer_size 128k;
