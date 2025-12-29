@@ -40,7 +40,7 @@ cd nextcloud-installer
 ### 2. Torne os scripts executáveis
 
 ```bash
-chmod +x install.sh backup.sh restore.sh status.sh manage.sh
+chmod +x install.sh backup.sh restore.sh update.sh status.sh manage.sh
 chmod +x scripts/*.sh
 ```
 
@@ -64,6 +64,7 @@ nextcloud-installer/
 ├── install.sh              # Script principal de instalação
 ├── backup.sh               # Script de backup
 ├── restore.sh              # Script de restauração
+├── update.sh               # Atualizar Nextcloud
 ├── status.sh               # Verificar status de todos os serviços
 ├── manage.sh               # Gerenciar serviços (start/stop/restart)
 ├── scripts/
@@ -134,6 +135,35 @@ sudo ./restore.sh backup.tar.gz --new-domain novocloud.exemplo.com
 | `--no-database` | Não restaurar banco de dados |
 | `--no-data` | Não restaurar dados |
 | `--no-config` | Não restaurar configuração |
+
+## 🔄 Atualização
+
+### Verificar Atualizações
+
+```bash
+sudo ./update.sh --check
+```
+
+### Atualizar Manualmente
+
+```bash
+sudo ./update.sh
+```
+
+### Atualização Automática
+
+```bash
+sudo ./update.sh --auto
+```
+
+### Opções de Atualização
+
+| Opção | Descrição |
+|-------|-----------|
+| `--check` | Apenas verificar atualizações |
+| `--auto` | Atualizar automaticamente sem confirmação |
+| `--skip-backup` | Pular backup (não recomendado) |
+| `--backup-only` | Apenas criar backup, não atualizar |
 
 ## 🔒 Segurança
 
