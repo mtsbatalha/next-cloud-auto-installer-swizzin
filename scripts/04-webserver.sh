@@ -18,12 +18,12 @@ configure_apache() {
     a2dissite 000-default.conf 2>/dev/null || true
     
     # Create Nextcloud virtual host
-    cat > /etc/apache2/sites-available/nextcloud.conf << 'EOF'
-<VirtualHost *:80>
-    ServerName DOMAIN_PLACEHOLDER
-    DocumentRoot NEXTCLOUD_PATH_PLACEHOLDER
+    cat > /etc/apache2/sites-available/nextcloud.conf << EOF
+<VirtualHost *:${HTTP_PORT}>
+    ServerName ${DOMAIN}
+    DocumentRoot ${NEXTCLOUD_PATH}
 
-    <Directory NEXTCLOUD_PATH_PLACEHOLDER>
+    <Directory ${NEXTCLOUD_PATH}>
         Require all granted
         AllowOverride All
         Options FollowSymLinks MultiViews
@@ -32,8 +32,8 @@ configure_apache() {
             Dav off
         </IfModule>
 
-        SetEnv HOME NEXTCLOUD_PATH_PLACEHOLDER
-        SetEnv HTTP_HOME NEXTCLOUD_PATH_PLACEHOLDER
+        SetEnv HOME ${NEXTCLOUD_PATH}
+        SetEnv HTTP_HOME ${NEXTCLOUD_PATH}
     </Directory>
 
     # Security Headers
@@ -50,10 +50,6 @@ configure_apache() {
     CustomLog ${APACHE_LOG_DIR}/nextcloud-access.log combined
 </VirtualHost>
 EOF
-
-    # Replace placeholders
-    sed -i "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" /etc/apache2/sites-available/nextcloud.conf
-    sed -i "s|NEXTCLOUD_PATH_PLACEHOLDER|${NEXTCLOUD_PATH}|g" /etc/apache2/sites-available/nextcloud.conf
     
     # Enable required modules
     a2enmod rewrite
@@ -304,6 +300,8 @@ NGINX_EOF
     sed -i "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" /etc/nginx/sites-available/nextcloud
     sed -i "s|NEXTCLOUD_PATH_PLACEHOLDER|${NEXTCLOUD_PATH}|g" /etc/nginx/sites-available/nextcloud
     sed -i "s|PHP_VERSION_PLACEHOLDER|${PHP_VERSION}|g" /etc/nginx/sites-available/nextcloud
+    sed -i "s|listen 80;|listen ${HTTP_PORT};|g" /etc/nginx/sites-available/nextcloud
+    sed -i "s|listen \\[::\\]:80;|listen [::]:${HTTP_PORT};|g" /etc/nginx/sites-available/nextcloud
     
     # Enable site
     ln -sf /etc/nginx/sites-available/nextcloud /etc/nginx/sites-enabled/

@@ -28,6 +28,11 @@ WEBSERVER="apache"
 OFFICE_SUITE="collabora"
 PHP_VERSION="8.2"
 
+# Default ports (can be customized if running behind a reverse proxy)
+HTTP_PORT="80"
+HTTPS_PORT="443"
+SKIP_SSL="false"
+
 # Installation paths
 NEXTCLOUD_PATH="/var/www/nextcloud"
 DATA_PATH="/var/nextcloud-data"
@@ -224,6 +229,22 @@ collect_configuration() {
         OFFICE_DOMAIN=${OFFICE_DOMAIN:-office.${DOMAIN}}
     fi
     
+    # Custom ports (for reverse proxy setups)
+    echo ""
+    echo "Port Configuration:"
+    echo "  Default ports (80/443) require no other web server running."
+    echo "  Use custom ports if you have a reverse proxy (NPM, Traefik, etc.)"
+    read -p "Use custom ports? [y/N]: " CUSTOM_PORTS
+    if [[ "$CUSTOM_PORTS" =~ ^[Yy] ]]; then
+        read -p "HTTP Port [8080]: " HTTP_PORT
+        HTTP_PORT=${HTTP_PORT:-8080}
+        read -p "HTTPS Port [8443]: " HTTPS_PORT
+        HTTPS_PORT=${HTTPS_PORT:-8443}
+        SKIP_SSL="true"
+        log_warning "SSL will NOT be configured automatically with custom ports."
+        log_info "Configure SSL on your reverse proxy instead."
+    fi
+    
     # Generate database password
     DB_PASS=$(generate_password)
     DB_NAME="nextcloud"
@@ -246,6 +267,11 @@ collect_configuration() {
     [[ "$OFFICE_SUITE" != "none" ]] && echo "  Office Domain: $OFFICE_DOMAIN"
     echo "  Database:      MariaDB"
     echo "  Caching:       Redis + APCu"
+    if [[ "$HTTP_PORT" != "80" ]] || [[ "$HTTPS_PORT" != "443" ]]; then
+        echo "  HTTP Port:     $HTTP_PORT"
+        echo "  HTTPS Port:    $HTTPS_PORT"
+        echo "  SSL:           Skipped (configure on reverse proxy)"
+    fi
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     
@@ -275,6 +301,9 @@ NEXTCLOUD_PATH="${NEXTCLOUD_PATH}"
 DATA_PATH="${DATA_PATH}"
 BACKUP_PATH="${BACKUP_PATH}"
 PHP_VERSION="${PHP_VERSION}"
+HTTP_PORT="${HTTP_PORT}"
+HTTPS_PORT="${HTTPS_PORT}"
+SKIP_SSL="${SKIP_SSL}"
 EOF
     chmod 600 "${SCRIPT_DIR}/.install-config"
 }
@@ -292,6 +321,7 @@ run_installation() {
     export DB_NAME DB_USER DB_PASS REDIS_PASS
     export NEXTCLOUD_PATH DATA_PATH BACKUP_PATH PHP_VERSION
     export OS OS_VERSION OS_CODENAME
+    export HTTP_PORT HTTPS_PORT SKIP_SSL
     
     # Step 1: Install dependencies
     log_step "[1/8] Installing dependencies..."
@@ -313,10 +343,14 @@ run_installation() {
     source "${SCRIPTS_DIR}/04-webserver.sh"
     configure_webserver
     
-    # Step 5: Configure SSL
-    log_step "[5/8] Configuring SSL certificate..."
-    source "${SCRIPTS_DIR}/05-ssl.sh"
-    configure_ssl
+    # Step 5: Configure SSL (skip if using custom ports)
+    if [[ "$SKIP_SSL" == "true" ]]; then
+        log_info "[5/8] Skipping SSL (custom ports mode - configure on your reverse proxy)"
+    else
+        log_step "[5/8] Configuring SSL certificate..."
+        source "${SCRIPTS_DIR}/05-ssl.sh"
+        configure_ssl
+    fi
     
     # Step 6: Install Office suite (if selected)
     if [[ "$OFFICE_SUITE" != "none" ]]; then

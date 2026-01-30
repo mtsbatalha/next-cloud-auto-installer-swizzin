@@ -34,7 +34,7 @@ EOF
 [nextcloud]
 enabled = true
 backend = auto
-port = 80,443
+port = ${HTTP_PORT},${HTTPS_PORT}
 protocol = tcp
 filter = nextcloud
 maxretry = 5
@@ -64,8 +64,8 @@ configure_firewall() {
     ufw allow 22/tcp comment 'SSH'
     
     # Allow HTTP/HTTPS
-    ufw allow 80/tcp comment 'HTTP'
-    ufw allow 443/tcp comment 'HTTPS'
+    ufw allow ${HTTP_PORT}/tcp comment 'HTTP'
+    ufw allow ${HTTPS_PORT}/tcp comment 'HTTPS'
     
     # Allow Office port if Docker is on different network
     if [[ "$OFFICE_SUITE" != "none" ]]; then

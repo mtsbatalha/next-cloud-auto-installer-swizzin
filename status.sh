@@ -24,6 +24,10 @@ else
     DATA_PATH="/var/nextcloud-data"
 fi
 
+# Default ports if not in config
+HTTP_PORT="${HTTP_PORT:-80}"
+HTTPS_PORT="${HTTPS_PORT:-443}"
+
 #===============================================================================
 # Helper Functions
 #===============================================================================
@@ -141,8 +145,8 @@ check_ports() {
     print_section "Network Ports"
     
     declare -A PORTS=(
-        ["80"]="HTTP"
-        ["443"]="HTTPS"
+        ["${HTTP_PORT}"]="HTTP"
+        ["${HTTPS_PORT}"]="HTTPS"
         ["3306"]="MariaDB"
         ["9980"]="Office Suite"
     )
