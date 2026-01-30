@@ -18,6 +18,7 @@ install_dependencies() {
         apt-transport-https \
         software-properties-common \
         unzip \
+        bzip2 \
         imagemagick \
         ffmpeg \
         libmagickcore-6.q16-6-extra \
