@@ -138,7 +138,8 @@ _nc_install_dependencies() {
         php${phpv}-imagick \
         php${phpv}-opcache \
         php${phpv}-ldap \
-        php${phpv}-smbclient
+        smbclient \
+        libsmbclient-dev
 
     apt_install \
         redis-server \
