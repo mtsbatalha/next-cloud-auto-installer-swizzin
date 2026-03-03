@@ -126,6 +126,9 @@ server {
 
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
+    # Remove X-Frame-Options from OnlyOffice responses to allow iframe embedding
+    proxy_hide_header X-Frame-Options;
+
     location / {
         proxy_pass http://127.0.0.1:9980;
         proxy_set_header Host \$host;

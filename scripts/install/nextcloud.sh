@@ -720,17 +720,43 @@ _nc_configure_redis() {
         redis_already_running=true
     fi
 
+    # Ensure Redis socket directory exists
+    mkdir -p /var/run/redis
+    chown redis:redis /var/run/redis
+    chmod 755 /var/run/redis
+
     if [[ "$redis_already_running" == "true" ]]; then
         # Redis is already running (another swizzin package may use it)
-        # Only add www-data to redis group and use a different dbindex
+        # Use a different dbindex to avoid conflicts
         echo_info "Redis already running, using dbindex 1 for Nextcloud"
         swizdb set nextcloud/redis_dbindex "1"
+
+        # Ensure Unix socket is configured (append if missing)
+        if ! grep -q "^unixsocket " /etc/redis/redis.conf 2>/dev/null; then
+            echo_info "Adding Unix socket configuration to existing Redis"
+            cat >> /etc/redis/redis.conf << EOF
+
+# Nextcloud: Unix socket for local connections
+unixsocket /var/run/redis/redis-server.sock
+unixsocketperm 770
+EOF
+        fi
+
+        # Detect if Redis has a password configured
+        local existing_pass
+        existing_pass=$(grep -oP '^requirepass\s+\K.+' /etc/redis/redis.conf 2>/dev/null || true)
+        if [[ -n "$existing_pass" ]]; then
+            # Use the existing Redis password
+            NC_REDIS_PASS="$existing_pass"
+            swizdb set nextcloud/redis_pass "$existing_pass"
+        else
+            # Redis has no password — don't set one in Nextcloud
+            NC_REDIS_PASS=""
+        fi
+
+        systemctl restart redis-server >> $log 2>&1
     else
         # Configure Redis from scratch
-        mkdir -p /var/run/redis
-        chown redis:redis /var/run/redis
-        chmod 755 /var/run/redis
-
         cat > /etc/redis/redis.conf << EOF
 # Nextcloud optimized Redis configuration
 
@@ -875,7 +901,11 @@ _nc_configure_caching() {
     # Redis connection
     nc_occ config:system:set redis host --value="/var/run/redis/redis-server.sock" >> $log 2>&1
     nc_occ config:system:set redis port --value=0 --type=integer >> $log 2>&1
-    nc_occ config:system:set redis password --value="${NC_REDIS_PASS}" >> $log 2>&1
+    if [[ -n "${NC_REDIS_PASS}" ]]; then
+        nc_occ config:system:set redis password --value="${NC_REDIS_PASS}" >> $log 2>&1
+    else
+        nc_occ config:system:delete redis password >> $log 2>&1
+    fi
     nc_occ config:system:set redis dbindex --value="${redis_dbindex}" --type=integer >> $log 2>&1
     nc_occ config:system:set redis timeout --value=1.5 --type=float >> $log 2>&1
 

@@ -75,14 +75,42 @@ EOF
 
 configure_redis() {
     log_info "Configuring Redis..."
-    
+
     # Create Redis socket directory
     mkdir -p /var/run/redis
     chown redis:redis /var/run/redis
     chmod 755 /var/run/redis
-    
-    # Configure Redis
-    cat > /etc/redis/redis.conf << EOF
+
+    local redis_already_running=false
+    if systemctl is-active redis-server > /dev/null 2>&1; then
+        redis_already_running=true
+    fi
+
+    if [[ "$redis_already_running" == "true" ]]; then
+        log_info "Redis already running, adapting existing configuration..."
+
+        # Ensure Unix socket is configured (append if missing)
+        if ! grep -q "^unixsocket " /etc/redis/redis.conf 2>/dev/null; then
+            log_info "Adding Unix socket configuration to existing Redis"
+            cat >> /etc/redis/redis.conf << EOF
+
+# Nextcloud: Unix socket for local connections
+unixsocket /var/run/redis/redis-server.sock
+unixsocketperm 770
+EOF
+        fi
+
+        # Detect if Redis has a password configured
+        local existing_pass
+        existing_pass=$(grep -oP '^requirepass\s+\K.+' /etc/redis/redis.conf 2>/dev/null || true)
+        if [[ -n "$existing_pass" ]]; then
+            REDIS_PASS="$existing_pass"
+        else
+            REDIS_PASS=""
+        fi
+    else
+        # Configure Redis from scratch
+        cat > /etc/redis/redis.conf << EOF
 # Nextcloud optimized Redis configuration
 
 # Network
@@ -131,14 +159,15 @@ client-output-buffer-limit pubsub 32mb 8mb 60
 hz 10
 dynamic-hz yes
 EOF
+    fi
 
     # Add www-data to redis group
     usermod -aG redis www-data
-    
+
     # Restart Redis
     systemctl enable redis-server
     systemctl restart redis-server
-    
+
     log_success "Redis configured"
 }
 
@@ -232,7 +261,11 @@ configure_nextcloud_caching() {
     # Configure Redis connection (using socket)
     sudo -u www-data php occ config:system:set redis host --value="/var/run/redis/redis-server.sock"
     sudo -u www-data php occ config:system:set redis port --value=0 --type=integer
-    sudo -u www-data php occ config:system:set redis password --value="${REDIS_PASS}"
+    if [[ -n "${REDIS_PASS}" ]]; then
+        sudo -u www-data php occ config:system:set redis password --value="${REDIS_PASS}"
+    else
+        sudo -u www-data php occ config:system:delete redis password
+    fi
     sudo -u www-data php occ config:system:set redis dbindex --value=0 --type=integer
     sudo -u www-data php occ config:system:set redis timeout --value=1.5 --type=float
     

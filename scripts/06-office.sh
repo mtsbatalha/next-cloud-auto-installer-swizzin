@@ -281,8 +281,10 @@ configure_onlyoffice_apache() {
     RewriteCond %{HTTP:Connection} upgrade [NC]
     RewriteRule ^/?(.*) "ws://127.0.0.1:9980/\$1" [P,L]
 
-    # Security Headers  
+    # Security Headers
     Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    # Remove X-Frame-Options from OnlyOffice responses to allow iframe embedding
+    Header always unset X-Frame-Options
 
     ErrorLog \${APACHE_LOG_DIR}/onlyoffice-error.log
     CustomLog \${APACHE_LOG_DIR}/onlyoffice-access.log combined
@@ -316,6 +318,9 @@ server {
     ssl_session_cache shared:SSL:50m;
 
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Remove X-Frame-Options from OnlyOffice responses to allow iframe embedding
+    proxy_hide_header X-Frame-Options;
 
     location / {
         proxy_pass http://127.0.0.1:9980;

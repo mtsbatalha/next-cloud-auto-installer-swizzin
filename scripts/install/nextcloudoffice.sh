@@ -160,9 +160,25 @@ server {
 
     server_tokens off;
 
-    # SSL - reuse Nextcloud domain certs or generate for office domain
+NGINXEOF
+
+    # SSL params: Collabora uses shared snippet, OnlyOffice inlines them
+    # to avoid inheriting X-Frame-Options from the shared snippet
+    if [[ "$suite" == "onlyoffice" ]]; then
+        cat >> /etc/nginx/conf.d/nextcloud-office.conf << 'NGINXEOF'
+    # SSL params (inlined to avoid X-Frame-Options from shared snippet)
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers 'HIGH:!aNULL:!MD5:!3DES';
+    ssl_prefer_server_ciphers on;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:50m;
+    ssl_session_tickets off;
+NGINXEOF
+    else
+        cat >> /etc/nginx/conf.d/nextcloud-office.conf << 'NGINXEOF'
     include /etc/nginx/snippets/ssl-params.conf;
 NGINXEOF
+    fi
 
     # Use existing SSL cert for office domain, or fall back to nextcloud domain cert
     local nc_domain
@@ -240,6 +256,9 @@ NGINXEOF
         cat >> /etc/nginx/conf.d/nextcloud-office.conf << 'NGINXEOF'
 
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Remove X-Frame-Options from OnlyOffice responses to allow iframe embedding
+    proxy_hide_header X-Frame-Options;
 
     location / {
         proxy_pass http://127.0.0.1:9980;
