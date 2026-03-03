@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/swizzin/swizzin/master/sources/globals.sh\" -o /dev/stdout)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/swizzin/swizzin/master/scripts/install/nginx.sh\" -o /dev/stdout)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/swizzin/swizzin/master/scripts/install/nextcloud.sh\")"
+    ]
+  }
+}

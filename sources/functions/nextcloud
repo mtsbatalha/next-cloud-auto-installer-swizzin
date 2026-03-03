@@ -1,0 +1,40 @@
+#!/bin/bash
+# Nextcloud helper functions for swizzin
+# Shared constants and utilities used by install, remove, update scripts
+
+export NEXTCLOUD_PATH="/srv/nextcloud"
+export NC_DATA_PATH="/srv/nextcloud-data"
+export NC_BACKUP_PATH="/var/backups/nextcloud"
+
+nc_occ() {
+    cd "${NEXTCLOUD_PATH}"
+    sudo -u www-data php occ "$@"
+}
+
+nc_get_version() {
+    nc_occ -V 2>/dev/null | grep -oP '\d+\.\d+\.\d+' || echo "unknown"
+}
+
+nc_maintenance_on() {
+    nc_occ maintenance:mode --on >> $log 2>&1
+}
+
+nc_maintenance_off() {
+    nc_occ maintenance:mode --off >> $log 2>&1
+}
+
+nc_fix_permissions() {
+    find "${NEXTCLOUD_PATH}" -type f -print0 | xargs -0 chmod 0640
+    find "${NEXTCLOUD_PATH}" -type d -print0 | xargs -0 chmod 0750
+    chown -R www-data:www-data "${NEXTCLOUD_PATH}"
+    chown -R www-data:www-data "${NC_DATA_PATH}"
+    chmod 0600 "${NEXTCLOUD_PATH}/config/config.php" 2>/dev/null || true
+    chmod 0750 "${NC_DATA_PATH}"
+    if [[ -f "${NEXTCLOUD_PATH}/.htaccess" ]]; then
+        chmod 0644 "${NEXTCLOUD_PATH}/.htaccess"
+    fi
+}
+
+nc_generate_password() {
+    openssl rand -base64 32 | tr -d '/+=' | cut -c1-24
+}
