@@ -23,11 +23,28 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "${SCRIPT_DIR}/.install-config" ]]; then
     source "${SCRIPT_DIR}/.install-config"
 else
-    NEXTCLOUD_PATH="/var/www/nextcloud"
+    # Auto-detect Nextcloud path
+    NEXTCLOUD_PATH=""
+    for _p in /var/www/nextcloud /srv/nextcloud /var/www/html/nextcloud /opt/nextcloud; do
+        if [[ -f "${_p}/occ" ]]; then
+            NEXTCLOUD_PATH="$_p"
+            break
+        fi
+    done
+    NEXTCLOUD_PATH="${NEXTCLOUD_PATH:-/var/www/nextcloud}"
     DATA_PATH="/var/nextcloud-data"
     BACKUP_PATH="/var/backups/nextcloud"
     DB_NAME="nextcloud"
     DB_USER="nextcloud"
+    # Try to read data path from config.php
+    if [[ -f "${NEXTCLOUD_PATH}/config/config.php" ]]; then
+        _data=$(grep -oP "'datadirectory'\s*=>\s*'\K[^']+" "${NEXTCLOUD_PATH}/config/config.php" 2>/dev/null || true)
+        [[ -n "$_data" ]] && DATA_PATH="$_data"
+        _dbname=$(grep -oP "'dbname'\s*=>\s*'\K[^']+" "${NEXTCLOUD_PATH}/config/config.php" 2>/dev/null || true)
+        [[ -n "$_dbname" ]] && DB_NAME="$_dbname"
+        _dbuser=$(grep -oP "'dbuser'\s*=>\s*'\K[^']+" "${NEXTCLOUD_PATH}/config/config.php" 2>/dev/null || true)
+        [[ -n "$_dbuser" ]] && DB_USER="$_dbuser"
+    fi
 fi
 
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }

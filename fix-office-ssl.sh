@@ -12,7 +12,15 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-NEXTCLOUD_PATH="/var/www/nextcloud"
+# Auto-detect Nextcloud path
+NEXTCLOUD_PATH=""
+for _p in /var/www/nextcloud /srv/nextcloud /var/www/html/nextcloud /opt/nextcloud; do
+    if [[ -f "${_p}/occ" ]]; then
+        NEXTCLOUD_PATH="$_p"
+        break
+    fi
+done
+NEXTCLOUD_PATH="${NEXTCLOUD_PATH:-/var/www/nextcloud}"
 
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
