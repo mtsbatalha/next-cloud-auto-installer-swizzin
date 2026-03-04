@@ -483,10 +483,10 @@ set_nextcloud_no_data() {
 }
 
 set_all_apps() {
-    [[ "$DETECTED_RUTORRENT" == "true" ]]   && BACKUP_RUTORRENT=true
-    [[ "$DETECTED_QBITTORRENT" == "true" ]] && BACKUP_QBITTORRENT=true
-    [[ "$DETECTED_DELUGE" == "true" ]]      && BACKUP_DELUGE=true
-    [[ "$DETECTED_PLEX" == "true" ]]        && BACKUP_PLEX=true
+    [[ "$DETECTED_RUTORRENT" == "true" ]]   && BACKUP_RUTORRENT=true   || true
+    [[ "$DETECTED_QBITTORRENT" == "true" ]] && BACKUP_QBITTORRENT=true || true
+    [[ "$DETECTED_DELUGE" == "true" ]]      && BACKUP_DELUGE=true      || true
+    [[ "$DETECTED_PLEX" == "true" ]]        && BACKUP_PLEX=true        || true
 }
 
 #===============================================================================
