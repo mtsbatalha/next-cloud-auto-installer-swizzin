@@ -19,12 +19,9 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Load configuration
-if [[ -f "${SCRIPT_DIR}/.install-config" ]]; then
-    source "${SCRIPT_DIR}/.install-config"
-else
-    WEBSERVER="apache"
-    OFFICE_SUITE="none"
-fi
+[[ -f "${SCRIPT_DIR}/.install-config" ]] && source "${SCRIPT_DIR}/.install-config"
+WEBSERVER="${WEBSERVER:-apache}"
+OFFICE_SUITE="${OFFICE_SUITE:-none}"
 
 #===============================================================================
 # Helper Functions

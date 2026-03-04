@@ -17,10 +17,10 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && cd .. && pwd)"
 
 # Load configuration
-if [[ -f "${SCRIPT_DIR}/.install-config" ]]; then
-    source "${SCRIPT_DIR}/.install-config"
-else
-    # Auto-detect Nextcloud path
+[[ -f "${SCRIPT_DIR}/.install-config" ]] && source "${SCRIPT_DIR}/.install-config"
+
+# Auto-detect Nextcloud path if not set
+if [[ -z "$NEXTCLOUD_PATH" || ! -f "${NEXTCLOUD_PATH}/occ" ]]; then
     NEXTCLOUD_PATH=""
     for _p in /var/www/nextcloud /srv/nextcloud /var/www/html/nextcloud /opt/nextcloud; do
         if [[ -f "${_p}/occ" ]]; then
@@ -29,8 +29,8 @@ else
         fi
     done
     NEXTCLOUD_PATH="${NEXTCLOUD_PATH:-/var/www/nextcloud}"
-    DOMAIN="localhost"
 fi
+DOMAIN="${DOMAIN:-localhost}"
 
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
