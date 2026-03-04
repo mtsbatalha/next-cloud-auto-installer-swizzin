@@ -325,17 +325,80 @@ main() {
         fi
     fi
     
-    # Create backup
+    # Backup before update
     if [[ "$SKIP_BACKUP" != "true" ]]; then
-        echo ""
-        log_warning "Creating backup before update..."
-        if ! create_pre_update_backup; then
-            log_error "Backup failed! Aborting update."
-            log_info "Use --skip-backup to update without backup (not recommended)"
-            exit 1
+        if [[ "$AUTO_UPDATE" == "true" ]]; then
+            # Auto mode: backup without asking
+            echo ""
+            log_warning "Creating backup before update..."
+            if ! create_pre_update_backup; then
+                log_error "Backup failed! Aborting update."
+                log_info "Use --skip-backup to update without backup (not recommended)"
+                exit 1
+            fi
+        else
+            # Interactive: ask user about backup
+            echo ""
+            echo -e "${BOLD}Deseja fazer backup antes da atualizacao?${NC}"
+            echo ""
+            echo -e "  ${GREEN}1)${NC} Sim - backup rapido (banco + config, sem dados)  ${CYAN}(Recomendado)${NC}"
+            echo -e "  ${GREEN}2)${NC} Sim - backup completo (banco + config + dados)"
+            echo -e "  ${GREEN}3)${NC} Sim - usando o script de backup interativo"
+            echo -e "  ${RED}4)${NC} Nao - pular backup (nao recomendado)"
+            echo ""
+            read -rp "Opcao [1-4]: " backup_choice
+
+            case $backup_choice in
+                1)
+                    log_warning "Criando backup rapido antes da atualizacao..."
+                    if ! create_pre_update_backup; then
+                        log_error "Backup falhou! Abortando atualizacao."
+                        exit 1
+                    fi
+                    ;;
+                2)
+                    log_warning "Criando backup completo antes da atualizacao..."
+                    if [[ -f "${SCRIPT_DIR}/backup.sh" ]]; then
+                        if ! "${SCRIPT_DIR}/backup.sh" --nc-full; then
+                            log_error "Backup falhou! Abortando atualizacao."
+                            exit 1
+                        fi
+                        log_success "Backup completo criado"
+                    else
+                        log_warning "backup.sh nao encontrado, usando backup rapido..."
+                        if ! create_pre_update_backup; then
+                            log_error "Backup falhou! Abortando atualizacao."
+                            exit 1
+                        fi
+                    fi
+                    ;;
+                3)
+                    log_info "Abrindo script de backup interativo..."
+                    if [[ -f "${SCRIPT_DIR}/backup.sh" ]]; then
+                        if ! "${SCRIPT_DIR}/backup.sh"; then
+                            log_error "Backup falhou! Abortando atualizacao."
+                            exit 1
+                        fi
+                        log_success "Backup concluido"
+                    else
+                        log_error "backup.sh nao encontrado!"
+                        exit 1
+                    fi
+                    ;;
+                4)
+                    log_warning "Pulando backup conforme solicitado"
+                    ;;
+                *)
+                    log_info "Opcao invalida. Criando backup rapido por seguranca..."
+                    if ! create_pre_update_backup; then
+                        log_error "Backup falhou! Abortando atualizacao."
+                        exit 1
+                    fi
+                    ;;
+            esac
         fi
     else
-        log_warning "Skipping backup as requested"
+        log_warning "Skipping backup as requested (--skip-backup)"
     fi
     
     # Perform update
